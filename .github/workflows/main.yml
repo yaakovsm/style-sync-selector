@@ -27,14 +27,14 @@ jobs:
       with:
         context: ./backend
         push: true
-        tags: ai-courseproject-backend:latest
+        tags: yaakovsm/ai-courseproject-backend:latest
 
     - name: Build and push Frontend
       uses: docker/build-push-action@v4
       with:
         context: ./frontend
         push: true
-        tags: ai-courseproject-frontend:latest
+        tags: yaakovsm/ai-courseproject-frontend:latest
 
   deploy:
     needs: build-and-push
