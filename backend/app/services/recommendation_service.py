@@ -3,6 +3,7 @@ import openai
 from dotenv import load_dotenv
 from fastapi import HTTPException
 import time
+import replicate
 
 load_dotenv()
 
@@ -82,7 +83,7 @@ Primary clothing item: {primary_item_description}
         end = content.rfind('}') + 1
         json_str = content[start:end]
         data = json.loads(json_str)
-        # Ensure each outfit has an image_prompt that details the full outfit
+        # Ensure each outfit has an image_prompt that details the full outfit and enforces exact items/colors
         for i, outfit in enumerate(data["outfits"]):
             style_desc = data["style_inspirations"][i % len(data["style_inspirations"])]["description"]
             # Construct a detailed image prompt for the outfit
@@ -97,18 +98,21 @@ Primary clothing item: {primary_item_description}
             outfit_description_for_prompt = ", ".join(outfit_parts)
 
             data["outfits"][i]["image_prompt"] = (
-                f"Full body fashion photo of a {gender} wearing a {outfit_description_for_prompt}. "
-                f"Specifically, the image should feature {('a ' + primary_item_description) if primary_item_description else 'the recommended outfit'}. "
-                f"The style is {style_desc.lower()}. "
-                f"High quality, realistic, outdoor setting, professional photography, clean background."
+                f"Full body fashion photo of a {gender} wearing: {outfit_description_for_prompt}. "
+                f"Primary item must be present and prominent: {primary_item_description}. "
+                f"Exact match required – no substitutions: Top='{outfit['top']}', Pants='{outfit['pants']}', Shoes='{outfit['shoes']}'. "
+                f"Each garment is a solid color (no patterns), with clean edges. Colors must exactly match the descriptions. "
+                f"No text, no logos, no graphics on clothing. "
+                f"Head to toe visible, shoes clearly visible. The style is {style_desc.lower()}. "
+                f"Photorealistic, editorial street style, natural lighting, clean unobtrusive background."
             )
         
-        # Ensure main_image_prompt for style_inspirations is also descriptive
+        # Ensure main_image_prompt for style_inspirations is also descriptive and enforces full body
         for i, style_insp in enumerate(data["style_inspirations"]):
             data["style_inspirations"][i]["main_image_prompt"] = (
                 f"Full body fashion photo of a {gender} showcasing a {style_insp['description']}. "
-                f"The image should incorporate a {primary_item_description}. "
-                f"High quality, realistic, outdoor setting, professional photography, clean background."
+                f"Include the {primary_item_description}. Head to toe visible, shoes clearly visible. "
+                f"Photorealistic, editorial street style, natural lighting, clean background."
             )
         
         return data
@@ -143,68 +147,78 @@ Primary clothing item: {primary_item_description}
             ]
         }
 
-def generate_dalle_image(prompt: str) -> str:
+def generate_sdxl_image(prompt: str) -> str:
     """
-    Generate an image using DALL·E via OpenAI API.
+    Generate an image using Stable Diffusion XL via Replicate.
     Returns the URL of the generated image.
     """
+    if not os.getenv("REPLICATE_API_TOKEN"):
+        raise HTTPException(status_code=500, detail="REPLICATE_API_TOKEN is not set")
+
     max_retries = 3
     retry_delay = 2  # seconds
-    
+
+    model_candidates = []
+    # Prefer explicitly configured model (including version) if provided
+    configured_model = os.getenv("REPLICATE_MODEL")
+    if configured_model:
+        model_candidates.append(configured_model)
+    # Fallback candidates (may require version pinning on Replicate; override with REPLICATE_MODEL if these fail)
+    model_candidates.extend([
+        "stability-ai/stable-diffusion-xl-base-1.0",
+        "stability-ai/sdxl",
+    ])
+
     for attempt in range(max_retries):
         try:
-            # Ensure prompt is not too long (DALL·E 3 has a 4000 character limit)
+            # SDXL prompts are typically shorter than 8k chars; trim if absurdly long
             if len(prompt) > 4000:
                 prompt = prompt[:3997] + "..."
-            
-            # Add more specific details to the prompt for better results
-            enhanced_prompt = prompt
-                
-            response = client.images.generate(
-                model="dall-e-3",
-                prompt=enhanced_prompt,
-                n=1,
-                size="1024x1024",
-                quality="standard",
-                style="natural",
-                timeout=60.0  # Increased timeout
+
+            enhanced_prompt = (
+                f"{prompt}. Full body, head to toe, feet and shoes visible, standing pose, subject centered. "
+                f"Do not change the specified items or their colors."
             )
-            
-            if not response.data or not response.data[0].url:
-                raise Exception("No image URL returned from DALL·E")
-                
-            return response.data[0].url
-            
-        except openai.RateLimitError as e:
-            print(f"DALL·E rate limit error (attempt {attempt + 1}/{max_retries}): {e}")
-            if attempt == max_retries - 1:
-                raise HTTPException(status_code=429, detail="OpenAI API rate limit exceeded. Please try again later.")
-            time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
-            
-        except openai.APIError as e:
-            print(f"DALL·E API error (attempt {attempt + 1}/{max_retries}): {e}")
-            if attempt == max_retries - 1:
-                # Try with a simpler prompt on the last attempt
+
+            last_error: Exception | None = None
+            for model_slug in model_candidates:
                 try:
-                    simplified_prompt = f"Fashion photo: {prompt}. Clean background."
-                    response = client.images.generate(
-                        model="dall-e-3",
-                        prompt=simplified_prompt,
-                        n=1,
-                        size="1024x1024",
-                        quality="standard",
-                        style="natural",
-                        timeout=60.0
+                    # Strong negative prompt to reduce mismatches
+                    neg = "cropped, out of frame, missing feet, cut off legs, close-up, zoomed-in, partial body, lowres, blurry, wrong color, color mismatch, different garment than specified, text, watermark, logo"
+
+                    output = replicate.run(
+                        model_slug,
+                        input={
+                            "prompt": enhanced_prompt,
+                            # Portrait aspect ratio to include shoes
+                            "width": 768,
+                            "height": 1344,
+                            "num_inference_steps": 40,
+                            "guidance_scale": 9.0,
+                            "negative_prompt": neg,
+                        },
                     )
-                    if response.data and response.data[0].url:
-                        return response.data[0].url
-                except Exception as retry_error:
-                    print(f"DALL·E retry error: {retry_error}")
-                    raise HTTPException(status_code=500, detail="Failed to generate image after all retries")
-            time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
-            
+
+                    urls = list(output) if output is not None else []
+                    if not urls:
+                        raise Exception("No image URL returned from SDXL")
+                    return urls[0]
+                except Exception as model_err:
+                    # Keep the error and try next candidate
+                    last_error = model_err
+                    print(f"Replicate error for model '{model_slug}': {model_err}")
+                    continue
+
+            # If all candidates failed, raise last error
+            if last_error:
+                raise last_error
+
         except Exception as e:
-            print(f"DALL·E error (attempt {attempt + 1}/{max_retries}): {e}")
+            print(f"SDXL error (attempt {attempt + 1}/{max_retries}): {e}")
             if attempt == max_retries - 1:
-                raise HTTPException(status_code=500, detail=str(e))
-            time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                hint = (
+                    "Consider setting REPLICATE_MODEL to an exact model version, e.g. "
+                    "'stability-ai/sdxl:<version-hash>' from the Replicate model page."
+                )
+                raise HTTPException(status_code=500, detail=f"{e}. {hint}")
+            time.sleep(retry_delay * (attempt + 1))

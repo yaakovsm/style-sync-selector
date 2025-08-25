@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from app.services.recommendation_service import get_recommendations, generate_dalle_image
+from app.services.recommendation_service import get_recommendations, generate_sdxl_image
 
 router = APIRouter(prefix="/api/recommend")
 
@@ -29,7 +29,7 @@ async def recommend(request: RecommendationRequest):
 @router.post("/image")
 async def generate_image(request: ImageRequest):
     try:
-        image_url = generate_dalle_image(request.prompt)
+        image_url = generate_sdxl_image(request.prompt)
         return {"image_url": image_url}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
