@@ -18,6 +18,7 @@ jobs:
             context: frontend
             file: frontend/Dockerfile
             image: style-sync-selector-frontend
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,7 +36,27 @@ jobs:
         id: vars
         run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-      - name: Build and push ${{ matrix.service.name }}
+      - name: Build image (no push yet)
+        id: build-image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.service.context }}
+          file: ${{ matrix.service.file }}
+          push: false
+          tags: ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service.image }}:${{ env.SHORT_SHA }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          outputs: type=docker
+
+      - name: Run container for testing
+        run: |
+          docker run --rm -d --name test-${{ matrix.service.name }} ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service.image }}:${{ env.SHORT_SHA }}
+          sleep 5
+          docker ps | grep test-${{ matrix.service.name }}
+          docker logs test-${{ matrix.service.name }}
+          docker stop test-${{ matrix.service.name }} || true
+
+      - name: Push image after test passed
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.service.context }}
@@ -46,3 +67,16 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service.image }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Get image digest
+        id: digest
+        run: |
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service.image }}:${{ env.SHORT_SHA }})
+          echo "IMAGE_DIGEST=$DIGEST" >> $GITHUB_ENV
+          echo "$DIGEST" > digest-${{ matrix.service.name }}.txt
+
+      - name: Upload digest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.service.name }}
+          path: digest-${{ matrix.service.name }}.txt
