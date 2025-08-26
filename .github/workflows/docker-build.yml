@@ -25,33 +25,33 @@ jobs:
         id: vars
         run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-      - name: Build services with docker-compose
+      - name: Build services with docker compose
         run: |
-          docker-compose -f docker-compose.yml build
+          docker compose -f docker-compose.yml build
 
-      - name: Run services with docker-compose
+      - name: Run services with docker compose
         run: |
-          docker-compose -f docker-compose.yml up -d
+          docker compose -f docker-compose.yml up -d
           sleep 10
 
       - name: Check backend is running
         run: |
-          if [ "$(docker inspect -f '{{.State.Running}}' $(docker-compose ps -q backend))" != "true" ]; then
+          if [ "$(docker inspect -f '{{.State.Running}}' $(docker compose ps -q backend))" != "true" ]; then
             echo "❌ Backend failed to start"
-            docker-compose logs backend
+            docker compose logs backend
             exit 1
           fi
 
       - name: Check frontend is running
         run: |
-          if [ "$(docker inspect -f '{{.State.Running}}' $(docker-compose ps -q frontend))" != "true" ]; then
+          if [ "$(docker inspect -f '{{.State.Running}}' $(docker compose ps -q frontend))" != "true" ]; then
             echo "❌ Frontend failed to start"
-            docker-compose logs frontend
+            docker compose logs frontend
             exit 1
           fi
 
       - name: Shut down containers
-        run: docker-compose -f docker-compose.yml down
+        run: docker compose -f docker-compose.yml down
 
       - name: Tag and Push images to DockerHub
         run: |
