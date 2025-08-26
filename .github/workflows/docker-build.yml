@@ -1,11 +1,11 @@
-name: Build and Push Docker Images
+name: Build, Test and Push Docker Images
 
 on:
   push:
     branches: [main]
 
 jobs:
-  build-and-push:
+  build-test-push:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -36,27 +36,32 @@ jobs:
         id: vars
         run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-      - name: Build image (no push yet)
-        id: build-image
+      - name: Build image for testing (local only)
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.service.context }}
           file: ${{ matrix.service.file }}
           push: false
-          tags: ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service.image }}:${{ env.SHORT_SHA }}
+          tags: ${{ matrix.service.image }}:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
           outputs: type=docker
 
       - name: Run container for testing
         run: |
-          docker run --rm -d --name test-${{ matrix.service.name }} ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service.image }}:${{ env.SHORT_SHA }}
+          docker run -d --name test-${{ matrix.service.name }} ${{ matrix.service.image }}:test
           sleep 5
-          docker ps || true
+          echo "Container logs:"
           docker logs test-${{ matrix.service.name }} || true
-          docker stop test-${{ matrix.service.name }} || true
+          STATUS=$(docker inspect -f '{{.State.Running}}' test-${{ matrix.service.name }})
+          if [ "$STATUS" != "true" ]; then
+            echo "❌ Container failed to start properly"
+            docker stop test-${{ matrix.service.name }} || true
+            exit 1
+          fi
+          docker stop test-${{ matrix.service.name }}
 
-      - name: Push image after test passed
+      - name: Build and push image (only if test passed)
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.service.context }}
@@ -69,8 +74,8 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Get image digest
-        id: digest
         run: |
+          docker pull ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service.image }}:${{ env.SHORT_SHA }}
           DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service.image }}:${{ env.SHORT_SHA }})
           echo "IMAGE_DIGEST=$DIGEST" >> $GITHUB_ENV
           echo "$DIGEST" > digest-${{ matrix.service.name }}.txt
