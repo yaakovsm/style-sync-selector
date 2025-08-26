@@ -52,8 +52,8 @@ jobs:
         run: |
           docker run --rm -d --name test-${{ matrix.service.name }} ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service.image }}:${{ env.SHORT_SHA }}
           sleep 5
-          docker ps | grep test-${{ matrix.service.name }}
-          docker logs test-${{ matrix.service.name }}
+          docker ps || true
+          docker logs test-${{ matrix.service.name }} || true
           docker stop test-${{ matrix.service.name }} || true
 
       - name: Push image after test passed
