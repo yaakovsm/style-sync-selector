@@ -28,6 +28,12 @@ jobs:
         id: vars
         run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
+      - name: Create backend .env file
+        run: |
+          echo "REPLICATE_API_TOKEN=${{ secrets.REPLICATE_API_TOKEN }}" >> backend/.env
+          echo "REPLICATE_MODEL=${{ secrets.REPLICATE_MODEL }}" >> backend/.env
+          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> backend/.env
+
       - name: Build services with docker compose
         run: docker compose -f docker-compose.yml build
 
