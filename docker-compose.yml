@@ -5,7 +5,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: ${{ secrets.DOCKER_USERNAME }}/style-sync-selector-backend:latest
+    image: "${DOCKER_USERNAME}/style-sync-selector-backend:latest"
     ports:
       - "8000:8000"
 
@@ -13,7 +13,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    image: ${{ secrets.DOCKER_USERNAME }}/style-sync-selector-frontend:latest
+    image: "${DOCKER_USERNAME}/style-sync-selector-frontend:latest"
     ports:
       - "8080:8080"
     environment:
