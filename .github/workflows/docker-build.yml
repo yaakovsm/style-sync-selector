@@ -1,4 +1,4 @@
-name: Build, Test and Push Docker Images
+name: Build, Test and Push Docker Images with Compose
 
 on:
   push:
@@ -7,17 +7,6 @@ on:
 jobs:
   build-test-push:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service:
-          - name: backend
-            context: backend
-            file: backend/Dockerfile
-            image: style-sync-selector-backend
-          - name: frontend
-            context: frontend
-            file: frontend/Dockerfile
-            image: style-sync-selector-frontend
 
     steps:
       - name: Checkout code
@@ -36,52 +25,57 @@ jobs:
         id: vars
         run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-      - name: Build image for testing (local only)
-        uses: docker/build-push-action@v5
-        with:
-          context: ${{ matrix.service.context }}
-          file: ${{ matrix.service.file }}
-          push: false
-          tags: ${{ matrix.service.image }}:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          outputs: type=docker
-
-      - name: Run container for testing
+      - name: Build services with docker-compose
         run: |
-          docker run -d --name test-${{ matrix.service.name }} ${{ matrix.service.image }}:test
-          sleep 5
-          echo "Container logs:"
-          docker logs test-${{ matrix.service.name }} || true
-          STATUS=$(docker inspect -f '{{.State.Running}}' test-${{ matrix.service.name }})
-          if [ "$STATUS" != "true" ]; then
-            echo "❌ Container failed to start properly"
-            docker stop test-${{ matrix.service.name }} || true
+          docker-compose -f docker-compose.yml build
+
+      - name: Run services with docker-compose
+        run: |
+          docker-compose -f docker-compose.yml up -d
+          sleep 10
+
+      - name: Check backend is running
+        run: |
+          if [ "$(docker inspect -f '{{.State.Running}}' $(docker-compose ps -q backend))" != "true" ]; then
+            echo "❌ Backend failed to start"
+            docker-compose logs backend
             exit 1
           fi
-          docker stop test-${{ matrix.service.name }}
 
-      - name: Build and push image (only if test passed)
-        uses: docker/build-push-action@v5
-        with:
-          context: ${{ matrix.service.context }}
-          file: ${{ matrix.service.file }}
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service.image }}:${{ env.SHORT_SHA }}
-            ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service.image }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Get image digest
+      - name: Check frontend is running
         run: |
-          docker pull ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service.image }}:${{ env.SHORT_SHA }}
-          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service.image }}:${{ env.SHORT_SHA }})
-          echo "IMAGE_DIGEST=$DIGEST" >> $GITHUB_ENV
-          echo "$DIGEST" > digest-${{ matrix.service.name }}.txt
+          if [ "$(docker inspect -f '{{.State.Running}}' $(docker-compose ps -q frontend))" != "true" ]; then
+            echo "❌ Frontend failed to start"
+            docker-compose logs frontend
+            exit 1
+          fi
 
-      - name: Upload digest artifact
+      - name: Shut down containers
+        run: docker-compose -f docker-compose.yml down
+
+      - name: Tag and Push images to DockerHub
+        run: |
+          docker tag ${{ secrets.DOCKER_USERNAME }}/style-sync-selector-backend:latest ${{ secrets.DOCKER_USERNAME }}/style-sync-selector-backend:${{ env.SHORT_SHA }}
+          docker tag ${{ secrets.DOCKER_USERNAME }}/style-sync-selector-frontend:latest ${{ secrets.DOCKER_USERNAME }}/style-sync-selector-frontend:${{ env.SHORT_SHA }}
+
+          docker push ${{ secrets.DOCKER_USERNAME }}/style-sync-selector-backend:${{ env.SHORT_SHA }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/style-sync-selector-backend:latest
+
+          docker push ${{ secrets.DOCKER_USERNAME }}/style-sync-selector-frontend:${{ env.SHORT_SHA }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/style-sync-selector-frontend:latest
+
+      - name: Save image digests
+        run: |
+          docker pull ${{ secrets.DOCKER_USERNAME }}/style-sync-selector-backend:${{ env.SHORT_SHA }}
+          docker pull ${{ secrets.DOCKER_USERNAME }}/style-sync-selector-frontend:${{ env.SHORT_SHA }}
+
+          docker inspect --format='{{index .RepoDigests 0}}' ${{ secrets.DOCKER_USERNAME }}/style-sync-selector-backend:${{ env.SHORT_SHA }} > digest-backend.txt
+          docker inspect --format='{{index .RepoDigests 0}}' ${{ secrets.DOCKER_USERNAME }}/style-sync-selector-frontend:${{ env.SHORT_SHA }} > digest-frontend.txt
+
+      - name: Upload digest artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: digest-${{ matrix.service.name }}
-          path: digest-${{ matrix.service.name }}.txt
+          name: image-digests
+          path: |
+            digest-backend.txt
+            digest-frontend.txt

@@ -2,19 +2,21 @@ version: '3.8'
 
 services:
   backend:
-    build: ./backend
-    container_name: ai-backend
-    env_file:
-      - ./backend/.env
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: ${{ secrets.DOCKER_USERNAME }}/style-sync-selector-backend:latest
     ports:
       - "8000:8000"
-    restart: always
 
   frontend:
-    build: ./frontend
-    container_name: ai-frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: ${{ secrets.DOCKER_USERNAME }}/style-sync-selector-frontend:latest
     ports:
-      - "80:80"
-    restart: always
+      - "8080:8080"
+    environment:
+      - VITE_BACKEND_URL=http://backend:8000
     depends_on:
       - backend
