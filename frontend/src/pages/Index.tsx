@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Shirt, Palette, Star, X } from "lucide-react";
+import { Palette, Star, X } from "lucide-react";
 import { StyleRecommendations } from "@/components/StyleRecommendations";
 import { fetchRecommendations } from "@/utils/api";
 import { Spinner } from "@/components/ui/Spinner";
@@ -18,6 +18,37 @@ const Index = () => {
   const [recommendations, setRecommendations] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [gender, setGender] = useState<"men" | "women">("men");
+  // Load persisted preferences
+  useEffect(() => {
+    try {
+      const savedGender = localStorage.getItem('pref_gender');
+      const savedStyles = localStorage.getItem('pref_styles');
+      if (savedGender === 'men' || savedGender === 'women') {
+        setGender(savedGender);
+      }
+      if (savedStyles) {
+        const parsed = JSON.parse(savedStyles);
+        if (Array.isArray(parsed)) {
+          setSelectedStyles(parsed.slice(0, 3));
+        }
+      }
+    } catch (_) {
+      // ignore
+    }
+  }, []);
+
+  // Persist preferences on change
+  useEffect(() => {
+    try {
+      localStorage.setItem('pref_gender', gender);
+    } catch (_) {}
+  }, [gender]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('pref_styles', JSON.stringify(selectedStyles));
+    } catch (_) {}
+  }, [selectedStyles]);
 
   const handleStyleAdd = () => {
     const styleToAdd = currentStyleInput.trim();
@@ -50,23 +81,25 @@ const Index = () => {
   const styles = ["elegant", "sportive", "casual", "smart", "street", "business casual", "professional", "date night", "edgy casual", "smart casual", "business formal", "sophisticated casual", "feminine casual", "relaxed casual", "cozy smart casual", "chic Parisian", "urban chic", "street style"];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 p-4">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Shirt className="h-8 w-8 text-purple-600" />
-            <h1 className="text-4xl font-bold text-gray-800">AI Fashion Stylist</h1>
+    <div className="min-h-screen">
+      <div className="max-w-6xl mx-auto px-6">
+        <section className="py-14 text-center">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <span className="inline-flex items-center rounded-full border px-3 py-1 text-xs text-muted-foreground">Your AI-powered personal stylist</span>
           </div>
-          <p className="text-lg text-gray-600">
-            Describe your clothing item and get personalized outfit recommendations
+          <h1 className="text-4xl md:text-5xl font-semibold tracking-tight text-foreground mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>
+            Elevate your wardrobe with confident, curated looks
+          </h1>
+          <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto">
+            Describe what you have in mind and instantly get polished outfit suggestions, color palettes, and inspiration images.
           </p>
-        </div>
+        </section>
 
-        <Card className="mb-8 shadow-lg">
+        <Card className="mb-12 shadow-sm border-muted">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Palette className="h-5 w-5" />
-              Get Your Style Recommendations
+              Get your style recommendations
             </CardTitle>
             <CardDescription>
               For example: "shirt" in "red" or "jeans" for a "casual" look.
@@ -172,7 +205,7 @@ const Index = () => {
 
               <Button 
                 type="submit" 
-                className="w-full bg-purple-600 hover:bg-purple-700"
+                className="w-full bg-primary hover:bg-primary/90"
                 disabled={isLoading || !clothingItem.trim()}
               >
                 <div className="flex items-center gap-2">
@@ -193,10 +226,67 @@ const Index = () => {
           <StyleRecommendations 
             clothingItem={clothingItem}
             color={color}
+            gender={gender}
             recommendations={recommendations}
           />
         )}
+
+        {/* Features */}
+        <section id="features" className="py-16">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-3">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-accent"><rect x="3" y="4" width="18" height="14" rx="3" stroke="currentColor" strokeWidth="2"/><path d="M7 8h10M7 12h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+                  Personalized Outfits
+                </CardTitle>
+                <CardDescription>Looks tailored to your item, color, and style.</CardDescription>
+              </CardHeader>
+            </Card>
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-3">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-accent"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2"/><path d="M12 3v18M3 12h18" stroke="currentColor" strokeWidth="2"/></svg>
+                  Curated Palettes
+                </CardTitle>
+                <CardDescription>Harmonized color suggestions that elevate.</CardDescription>
+              </CardHeader>
+            </Card>
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-3">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-accent"><rect x="4" y="6" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M10 9l3 3-3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  Visual Inspiration
+                </CardTitle>
+                <CardDescription>Instant concept images to guide your choices.</CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
+        </section>
+
+        {/* How it works */}
+        <section id="how-it-works" className="py-12 border-t">
+          <div className="grid gap-8 md:grid-cols-3">
+            <div>
+              <h3 className="text-lg font-medium mb-1">1. Describe</h3>
+              <p className="text-muted-foreground">Tell us the item, color, and up to 3 styles.</p>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium mb-1">2. Review</h3>
+              <p className="text-muted-foreground">Explore suggested outfits and color palettes.</p>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium mb-1">3. Decide</h3>
+              <p className="text-muted-foreground">Open visuals to validate the final look.</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="contact" className="py-12 border-t text-center text-sm text-muted-foreground">
+          <p>Questions? Reach us at contact@stylesync.app</p>
+        </section>
       </div>
+
     </div>
   );
 };

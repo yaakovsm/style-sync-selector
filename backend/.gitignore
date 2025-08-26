@@ -1,58 +1,39 @@
-# Python virtual environment
-venv/
-env/
-ENV/
-
-# Python bytecode
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Distribution / packaging
-dist/
-build/
-*.egg-info/
-
-# Environment variables
-.env
-.env.local
-.env.*
-
-# IDE specific files
+# OS/editor
+.DS_Store
+Thumbs.db
+*.log
 .vscode/
 .idea/
-*.swp
-*.swo
 
-# Logs
-*.log
-logs/
-
-# Database
-*.db
-*.sqlite3
-
-# Docker
-.docker/
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-coverage.xml
-*.cover
-
-# Additional Python specific
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
 *.so
-.Python
-pip-log.txt
-pip-delete-this-directory.txt
 .pytest_cache/
-.ruff_cache/
+.mypy_cache/
+.dmypy.json
+.pyre/
+.coverage
+coverage/
+htmlcov/
+.env
+.venv/
+venv/
+backend/venv/
 
-# Local development
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
+# Node/JS (generic)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Build artifacts
+dist/
+build/
+.cache/
+.temp/
+.tmp/

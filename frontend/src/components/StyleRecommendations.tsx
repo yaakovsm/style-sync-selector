@@ -29,6 +29,7 @@ interface StyleInspiration {
 interface StyleRecommendationsProps {
   clothingItem: string;
   color: string;
+  gender: 'men' | 'women';
   recommendations: {
     colorPalette: ColorPaletteItem[];
     styleInspirations: StyleInspiration[];
@@ -36,7 +37,7 @@ interface StyleRecommendationsProps {
   };
 }
 
-export const StyleRecommendations = ({ clothingItem, color, recommendations }: StyleRecommendationsProps) => {
+export const StyleRecommendations = ({ clothingItem, color, gender, recommendations }: StyleRecommendationsProps) => {
   const [selectedItem, setSelectedItem] = useState<OutfitRecommendation | StyleInspiration | null>(null);
 
   const handleImageClick = (item: OutfitRecommendation | StyleInspiration) => {
@@ -70,10 +71,10 @@ export const StyleRecommendations = ({ clothingItem, color, recommendations }: S
             {recommendations.colorPalette.map((color, idx) => (
               <div key={idx} className="flex flex-col items-center w-20">
                 <span
-                  className="w-10 h-10 rounded-full border border-gray-300 mb-2"
+                  className="w-10 h-10 rounded-full border border-border mb-2"
                   style={{ backgroundColor: color.hex }}
                 />
-                <span className="text-xs text-gray-700 text-center break-words">{color.name}</span>
+                <span className="text-xs text-muted-foreground text-center break-words">{color.name}</span>
               </div>
             ))}
           </div>
@@ -83,8 +84,8 @@ export const StyleRecommendations = ({ clothingItem, color, recommendations }: S
       {/* Outfit Recommendations */}
       <div>
         <div className="flex items-center gap-2 mb-4">
-          <ShirtIcon className="h-5 w-5 text-purple-600" />
-          <h2 className="text-xl font-semibold text-gray-800">Outfit Recommendations for "{clothingItem} in {color}"</h2>
+          <ShirtIcon className="h-5 w-5 text-primary" />
+          <h2 className="text-xl font-semibold text-foreground">Outfit Recommendations for "{clothingItem} in {color}"</h2>
         </div>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {recommendations.outfits.map((outfit, idx) => (
@@ -92,22 +93,31 @@ export const StyleRecommendations = ({ clothingItem, color, recommendations }: S
               <CardContent className="flex flex-col gap-4 p-6">
                 {outfit.top && outfit.top !== 'N/A (complete dress look)' && (
                   <div>
-                    <span className="block text-sm font-medium text-gray-700 mb-1">Top</span>
-                    <div className="text-gray-800 text-base font-normal pl-2">{outfit.top}</div>
+                    <span className="block text-sm font-medium text-muted-foreground mb-1">Top</span>
+                    <div className="text-foreground text-base font-normal pl-2">{outfit.top}</div>
                   </div>
                 )}
                 <div>
-                  <span className="block text-sm font-medium text-gray-700 mb-1">Pants</span>
-                  <div className="text-gray-800 text-base font-normal pl-2">{outfit.pants}</div>
+                  <span className="block text-sm font-medium text-muted-foreground mb-1">Pants</span>
+                  <div className="text-foreground text-base font-normal pl-2">{outfit.pants}</div>
                 </div>
                 <div>
-                  <span className="block text-sm font-medium text-gray-700 mb-1">Shoes</span>
-                  <div className="text-gray-800 text-base font-normal pl-2">{outfit.shoes}</div>
+                  <span className="block text-sm font-medium text-muted-foreground mb-1">Shoes</span>
+                  <div className="text-foreground text-base font-normal pl-2">{outfit.shoes}</div>
                 </div>
                 {recommendations.styleInspirations[idx] && (
                   <StyleInspirationCard
                     description={recommendations.styleInspirations[idx].description}
-                    imagePrompt={outfit.imagePrompt || ""}
+                    imagePrompt={`Fashion photograph, ${recommendations.styleInspirations[idx].description.toLowerCase()} style. ${gender === 'men' ? 'Male model' : 'Female model'}. Outfit based on ${clothingItem} in ${color}. Include: ${
+                      (outfit.top && outfit.top !== 'N/A (complete dress look)') ? outfit.top : ''
+                    }${(outfit.top && outfit.top !== 'N/A (complete dress look)') ? ', ' : ''}${
+                      outfit.pants || ''
+                    }${outfit.shoes ? ', ' : ''}${outfit.shoes || ''}. Photorealistic, full outfit visible, studio lighting.`}
+                    regeneratePrompt={`Fashion photograph, ${recommendations.styleInspirations[idx].description.toLowerCase()} style. ${gender === 'men' ? 'Male model' : 'Female model'}. Outfit based on ${clothingItem} in ${color}. Include: ${
+                      (outfit.top && outfit.top !== 'N/A (complete dress look)') ? outfit.top : ''
+                    }${(outfit.top && outfit.top !== 'N/A (complete dress look)') ? ', ' : ''}${
+                      outfit.pants || ''
+                    }${outfit.shoes ? ', ' : ''}${outfit.shoes || ''}. Photorealistic, full outfit visible, studio lighting.`}
                     onImageClick={(data) => handleImageClick(data)}
                   />
                 )}
@@ -144,12 +154,14 @@ export const StyleRecommendations = ({ clothingItem, color, recommendations }: S
 interface StyleInspirationCardProps {
   description: string;
   imagePrompt: string;
+  regeneratePrompt: string;
   onImageClick: (data: { imageUrl: string; description: string; }) => void;
 }
 
 const StyleInspirationCard: React.FC<StyleInspirationCardProps> = ({
   description, 
   imagePrompt,
+  regeneratePrompt,
   onImageClick
 }) => {
   const [mainImageUrl, setMainImageUrl] = useState<string | undefined>(undefined);
@@ -195,16 +207,38 @@ const StyleInspirationCard: React.FC<StyleInspirationCardProps> = ({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-gray-600 text-base mb-4">{description}</p>
+        <p className="text-muted-foreground text-base mb-4">{description}</p>
         <ImageWithLoading
           imageUrl={mainImageUrl}
           alt={`Image for ${description}`}
           imageStatus={imageStatus}
           onClick={mainImageUrl ? () => onImageClick({ imageUrl: mainImageUrl, description: description }) : undefined}
         />
-        {imageStatus === 'failed' && (
-          <div className="text-red-500 text-center text-sm mt-2">Failed to generate image. Please try again.</div>
-        )}
+        <div className="mt-3 flex items-center justify-between">
+          {imageStatus === 'failed' && (
+            <div className="text-destructive text-sm">Failed to generate image.</div>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              setImageStatus('loading');
+              try {
+                // Use a slightly varied prompt to encourage a new generation
+                const url = await generateImage(`${regeneratePrompt} Variation ${Date.now() % 1000}`);
+                setMainImageUrl(url);
+                setImageStatus('success');
+                toast({ title: 'Image updated', description: 'Generated a new variation.' });
+              } catch (err) {
+                setImageStatus('failed');
+                toast({ title: 'Failed to regenerate', description: 'Please try again.', variant: 'destructive' });
+              }
+            }}
+          >
+            Regenerate image
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -220,7 +254,7 @@ interface ImageWithLoadingProps {
 const ImageWithLoading: React.FC<ImageWithLoadingProps> = ({ imageUrl, alt, imageStatus, onClick }) => {
   if (imageStatus === 'failed') {
     return (
-      <div className="w-full h-32 bg-red-100 border-2 border-dashed border-red-300 rounded-lg flex items-center justify-center text-red-400 text-sm">
+      <div className="w-full h-32 bg-destructive/10 border-2 border-dashed border-destructive/30 rounded-lg flex items-center justify-center text-destructive text-sm">
         Failed to generate image
       </div>
     );
@@ -228,7 +262,7 @@ const ImageWithLoading: React.FC<ImageWithLoadingProps> = ({ imageUrl, alt, imag
 
   if (imageStatus === 'pending' || imageStatus === 'loading') {
     return (
-      <div className="w-full h-32 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-400 text-sm">
+      <div className="w-full h-32 bg-muted border-2 border-dashed border-border rounded-lg flex items-center justify-center text-muted-foreground text-sm">
         <div className="text-center">
           <Spinner className="w-6 h-6 mb-2" />
           <p>Generating outfit visualization...</p>
@@ -243,7 +277,7 @@ const ImageWithLoading: React.FC<ImageWithLoadingProps> = ({ imageUrl, alt, imag
         <img
           src={imageUrl}
           alt={alt}
-          className="w-full h-32 object-cover rounded-lg border border-gray-200"
+          className="w-full h-32 object-cover rounded-lg border border-border"
           style={{ aspectRatio: '1 / 1' }}
         />
         {/* Hover overlay */}
