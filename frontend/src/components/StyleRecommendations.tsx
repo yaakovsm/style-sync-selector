@@ -107,7 +107,7 @@ export const StyleRecommendations = ({ clothingItem, color, recommendations }: S
                 {recommendations.styleInspirations[idx] && (
                   <StyleInspirationCard
                     description={recommendations.styleInspirations[idx].description}
-                    imagePrompt={outfit.imagePrompt || recommendations.styleInspirations[idx].mainImagePrompt}
+                    imagePrompt={outfit.imagePrompt || ""}
                     onImageClick={(data) => handleImageClick(data)}
                   />
                 )}
@@ -122,7 +122,7 @@ export const StyleRecommendations = ({ clothingItem, color, recommendations }: S
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"
           onClick={handleCloseImage}
         >
-          <Card className="max-w-3xl max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+          <Card className="max-w-3xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
             <CardHeader className="flex flex-row items-center justify-between p-4">
               <CardTitle>
                 {"description" in selectedItem ? selectedItem.description : getModalTitle(selectedItem as OutfitRecommendation)}
@@ -132,7 +132,7 @@ export const StyleRecommendations = ({ clothingItem, color, recommendations }: S
               </Button>
             </CardHeader>
             <CardContent className="p-0">
-              <img src={selectedItem.imageUrl} alt="Full outfit image" className="w-full h-auto object-contain" />
+              <img src={selectedItem.imageUrl} alt="Full outfit image" className="max-h-[80vh] w-auto max-w-full object-contain mx-auto" />
             </CardContent>
           </Card>
         </div>
