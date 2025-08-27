@@ -71,6 +71,57 @@ jobs:
       - name: Shut down containers
         run: docker compose -f docker-compose.yml down
 
+        - name: Clean old DockerHub images (backend)
+        env:
+          IMAGE_NAME: style-sync-selector-backend
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          echo "Getting backend tags from DockerHub..."
+          TOKEN=$(curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'"$DOCKER_USERNAME"'", "password": "'"$DOCKER_PASSWORD"'"}' https://hub.docker.com/v2/users/login/ | jq -r .token)
+
+          TAGS=$(curl -s -H "Authorization: JWT $TOKEN" "https://hub.docker.com/v2/repositories/$DOCKER_USERNAME/$IMAGE_NAME/tags/?page_size=100" | jq -r '.results | sort_by(.last_updated) | .[].name')
+
+          COUNT=$(echo "$TAGS" | wc -l)
+          KEEP=5
+          echo "Found $COUNT backend tags"
+
+          if [ "$COUNT" -gt "$KEEP" ]; then
+            DELETE=$(echo "$TAGS" | head -n $(($COUNT - $KEEP)))
+            for tag in $DELETE; do
+              echo "Deleting backend tag: $tag"
+              curl -s -X DELETE -H "Authorization: JWT $TOKEN" "https://hub.docker.com/v2/repositories/$DOCKER_USERNAME/$IMAGE_NAME/tags/$tag/"
+            done
+          else
+            echo "Nothing to delete for backend."
+          fi
+
+      - name: Clean old DockerHub images (frontend)
+        env:
+          IMAGE_NAME: style-sync-selector-frontend
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          echo "Getting frontend tags from DockerHub..."
+          TOKEN=$(curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'"$DOCKER_USERNAME"'", "password": "'"$DOCKER_PASSWORD"'"}' https://hub.docker.com/v2/users/login/ | jq -r .token)
+
+          TAGS=$(curl -s -H "Authorization: JWT $TOKEN" "https://hub.docker.com/v2/repositories/$DOCKER_USERNAME/$IMAGE_NAME/tags/?page_size=100" | jq -r '.results | sort_by(.last_updated) | .[].name')
+
+          COUNT=$(echo "$TAGS" | wc -l)
+          KEEP=5
+          echo "Found $COUNT frontend tags"
+
+          if [ "$COUNT" -gt "$KEEP" ]; then
+            DELETE=$(echo "$TAGS" | head -n $(($COUNT - $KEEP)))
+            for tag in $DELETE; do
+              echo "Deleting frontend tag: $tag"
+              curl -s -X DELETE -H "Authorization: JWT $TOKEN" "https://hub.docker.com/v2/repositories/$DOCKER_USERNAME/$IMAGE_NAME/tags/$tag/"
+            done
+          else
+            echo "Nothing to delete for frontend."
+          fi
+
+
       - name: Tag and Push images to DockerHub
         run: |
           docker tag ${DOCKER_USERNAME}/style-sync-selector-backend:latest ${DOCKER_USERNAME}/style-sync-selector-backend:${{ env.SHORT_SHA }}
